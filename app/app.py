@@ -26,10 +26,11 @@ import nltk
 from Courses import ds_course,web_course,android_course,ios_course,uiux_course,resume_videos,interview_videos
 nltk.download('stopwords')
 nlp = spacy.load("en_core_web_sm")
+
 def get_csv_download_link(df,filename,text):
     csv = df.to_csv(index= False)
     b64 = base64.b64encode(csv.encode()).decode()
-    href = f'<a href="data:file/csv;base64,{b64}" download="{filename}>{text}"</a>'
+    href = f'<a href="data:file/csv;base64,{b64}" download="{filename}">{text}</a>'
     return href
 def extract_name(text):
     doc = nlp(text)
@@ -81,14 +82,18 @@ def insert_data(sec_token,ip_add,host_name,dev_user,os_name_ver,latlong,city,sta
     rec_values = (str(sec_token),str(ip_add),host_name,dev_user,os_name_ver,str(latlong),city,state,country,act_name,act_mail,act_mob,name,email,str(res_score),timestamp,str(no_of_pages),reco_field,cand_level,skills,recommended_skills,courses,pdf_name)
     cursor.execute(insert_sql,rec_values)
     connection.commit()
-def insertf_data(feed_name,feed_email,feed_score,comments,Timestamp):
+
+def insertf_data(feed_name, feed_email, feed_score, comments, Timestamp):
     DBf_table_name = 'user_feedback'
-    insertfeed_sql ="insert into " + DBf_table_name + """
-    values(0,%s,%s,%s,%s,%s)
-""" 
-    rec_values = (feed_name,feed_email,feed_score,comments,Timestamp)
-    cursor.execute(insertfeed_sql,rec_values)
+    insertfeed_sql = "INSERT INTO " + DBf_table_name + """ 
+    (feed_name, feed_email, feed_score, comments, Timestamp)
+    VALUES (%s, %s, %s, %s, %s)
+    """
+    rec_values = (feed_name, feed_email, feed_score, comments, Timestamp)
+    cursor.execute(insertfeed_sql, rec_values)
     connection.commit()
+
+
 
 st.set_page_config(
     page_title = "AI Resume Analyzer",
@@ -148,7 +153,7 @@ def run():
 
     DBF_table_name = 'user_feedback'
     tablef_sql = "CREATE TABLE IF NOT EXISTS  " + DBF_table_name + """
-    (ID INT NOT NULL AUTO_INCREMENT , 
+    (ID INT NOT NULL AUTO_INCREMENT, 
     feed_name varchar (50) NOT NULL,
     feed_email VARCHAR (50) NOT NULL,
     feed_score VARCHAR(10) NOT NULL,
@@ -491,7 +496,7 @@ def run():
                 if submitted:
                     insertf_data(feed_name,feed_email,feed_score,comments,Timestamp)
                     st.success("Thanks! Your Feedback was Recorded")
-                    st.ballons()
+                    st.balloons()
 
             query = ' select * from user_feedback'
             plotfeed_data =  pd.read_sql(query,connection)
@@ -547,12 +552,12 @@ def run():
                     values = plot_data.Idt.count()
                     st.success("Welcome Hanzala ! Total %d " % values + "User's have used our Tool : )")
 
-                    cursor.execute(''' SELECT ID , sec_token , ip_add , act_name ,act_mob , convert(Predicted_Field using utf-8), Timestamp , Name , Email_ID , resume_score , Page_no , pdf_name, convert(User_level using utf8), convert(Actual_skills using utf8), convert(Recommended_skills using utf8), convert(Recommended_courses using utf8), city, state, country, latlong, os_name_ver, host_name, dev_user from user_data
+                    cursor.execute(''' SELECT ID , sec_token , ip_add , act_name ,act_mob , convert(Predicted_Field using utf8mb4), Timestamp , Name , Email_ID , resume_score , Page_no , pdf_name, convert(User_level using utf8), convert(Actual_skills using utf8), convert(Recommended_skills using utf8), convert(Recommended_courses using utf8), city, state, country, latlong, os_name_ver, host_name, dev_user from user_data
 ''')
                     data = cursor.fetchall()
 
                     st.header("** User's Data **")
-                    df = pd.DataFrame(data , columns=['ID', 'Token', 'IP Address', 'Name', 'Mail', 'Mobile Number', 'Predicted Field', 'Timestamp',
+                    df = pd.DataFrame(data , columns=['ID', 'Token', 'IP Address', 'Name', 'Mobile Number', 'Predicted Field', 'Timestamp',
                                                  'Predicted Name', 'Predicted Mail', 'Resume Score', 'Total Page',  'File Name',   
                                                  'User Level', 'Actual Skills', 'Recommended Skills', 'Recommended Course',
                                                  'City', 'State', 'Country', 'Lat Long', 'Server OS', 'Server Name', 'Server User',])
@@ -563,7 +568,7 @@ def run():
                     data = cursor.fetchall()
 
                     st.header("** User's feedback Data **")
-                    df = pd.DataFrame(data,columns =['ID', 'Name','Email','Feedback_score','Comments','Timestamp'])
+                    df = pd.DataFrame(data,columns =['ID', 'Name','Email','feed_score','Comments','Timestamp'])
                     st.dataframe(df)
 
                     query = 'select * from user_feedback'
@@ -571,8 +576,8 @@ def run():
                     st.write("Plotfeed Data Columns:", plotfeed_data.columns.tolist())
                     print("Plotfeed Data Columns:", plotfeed_data.columns.tolist())
 
-                    labels = plotfeed_data['Feedback_score'].unique()
-                    values = plotfeed_data['Feedback_score'].value_counts()
+                    labels = plotfeed_data['feed_score'].unique()
+                    values = plotfeed_data['feed_score'].value_counts()
 
                     st.subheader("**User Rating's**")
                     fig = px.pie(values = values , names= labels , title="Chart of User Rating Score From 1 - 5 🤗", color_discrete_sequence=px.colors.sequential.Aggrnyl)

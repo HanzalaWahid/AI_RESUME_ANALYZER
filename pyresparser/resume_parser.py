@@ -1,53 +1,56 @@
-import os 
+import os
 import io
-import multiprocessing  as mp 
+import multiprocessing as mp
 import spacy
-import pprint 
+import pprint
 from spacy.matcher import Matcher
-import utils 
+import utils
+import en_core_web_sm
 
-class ResumeParser(object):
+class ResumeParser:
 
-    def __init__(self , resume , skills_file = None ,custom_regex = None ):
-        nlp = spacy.load('ec_core_web_sm')
-        custom_nlp = spacy.load(os.path.dirname(os.path.abspath(__file__)))
+    def __init__(self, resume, skills_file=None, custom_regex=None):
         self.__skills_file = skills_file
         self.__custom_regex = custom_regex
-        self.__matcher  = Matcher(nlp.vocab)
+        self.__resume = resume
+        self.__matcher = Matcher(en_core_web_sm.load().vocab)
+
         self.__details = {
-            'name': None , 
+            'name': None,
             'email': None,
             'mobile_number': None,
-            'skills': None , 
-            'degree': None, 
+            'skills': None,
+            'degree': None,
             'no_of_pages': None,
-        } 
-        self.__resume = resume 
-        if not isinstance(self.__resume , io.BytesIO):
-            ext = os.path.split(self.__resume)[1].split('.')[1]
+        }
+
+        # Load spaCy model
+        nlp = spacy.load('en_core_web_sm')
+        custom_nlp = en_core_web_sm.load()
+
+        # Determine extension and extract text
+        if isinstance(self.__resume, io.BytesIO):
+            ext = self.__resume.name.split('.')[-1]
         else:
-            ext = self.__resume.name.split('.')[1]
-            self.__text_raw = utils.extract(self.__resume, + ext)
-            self.__text = ''.join(self.__text_raw.split())
-            self.__nlp = nlp(self.__text)
-            self.__custom_nlp = custom_nlp(self.__text_raw)
-            self.__noun_chunks = list(self.__nlp.noun_chunks)
-            self.__get_basic_details()
-    def get_extracted_data (self):
+            ext = os.path.splitext(self.__resume)[1][1:]
+
+        self.__text_raw = utils.extract(self.__resume, ext)
+        self.__text = ''.join(self.__text_raw.split())
+        self.__nlp = nlp(self.__text)
+        self.__custom_nlp = custom_nlp(self.__text_raw)
+        self.__noun_chunks = list(self.__nlp.noun_chunks)
+
+        self.__get_basic_details()
+
+    def get_extracted_data(self):
         return self.__details
-    
+
     def __get_basic_details(self):
         cust_ent = utils.extract_entities_custom_model(self.__custom_nlp)
-        name = utils.extract_name(self.__nlp , matcher = self.__matcher)
+        name = utils.extract_name(self.__nlp, matcher=self.__matcher)
         email = utils.extract_email(self.__text)
-        mobile = utils.extract_mobile_number(self.__text , self.__custom_regex)
-        skills = utils.extract_skills_(self.__nlp,self.__noun_chunks,self.__skills_file)
-        entites = utils.extract_entity_selections_grad(self.__text_raw)
-
-        try:
-            self.__details['name'] = cust_ent['Name'][0]
-        except (IndexError , KeyError):
-            self.__details['name'] = name
+        mobile = utils.extract_mobile_number(self.__text, self.__custom_regex)
+        skills = utils.extract_skills_(self.__nlp, self.__noun_chunks, self.__skills_file)
 
         self.__details['emails'] = email
         self.__details['mobile_number'] = mobile
@@ -55,11 +58,14 @@ class ResumeParser(object):
         self.__details['no_of_pages'] = utils.get_number_of_pages(self.__resume)
 
         try:
+            self.__details['name'] = cust_ent['Name'][0]
+        except (IndexError, KeyError):
+            self.__details['name'] = name
+
+        try:
             self.__details['degree'] = cust_ent['Degree']
         except KeyError:
             pass
-
-        return
 
 def resume_result_wrapper(resume):
     parser = ResumeParser(resume)
@@ -69,18 +75,14 @@ if __name__ == '__main__':
     pool = mp.Pool(mp.cpu_count())
 
     resumes = []
-    data = []  
-    for root , directories , filenames in os.walk('resumes'):
+    data = []
+
+    for root, directories, filenames in os.walk('resumes'):
         for filename in filenames:
-            file = os.path.join(root , filename)
+            file = os.path.join(root, filename)
             resumes.append(file)
 
-    results = [
-        pool.apply_async(resume_result_wrapper,
-                          args = (x ,)) for x in resumes 
-    ]
-
-    results = [p.get() for p in results ]
+    results = [pool.apply_async(resume_result_wrapper, args=(x,)) for x in resumes]
+    results = [p.get() for p in results]
     pprint.pprint(results)
-
         
