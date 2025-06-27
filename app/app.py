@@ -14,7 +14,8 @@ import plotly.express as px
 import plotly.graph_objects as go 
 from geopy.geocoders import Nominatim
 from geopy.exc import GeocoderTimedOut, GeocoderUnavailable 
-from pyresparser import resume_parser
+# from pyresparser import resume_parser
+from pyresparser.resume_parser import ResumeParser
 from pdfminer3.layout import LAParams , LTTextBox
 from pdfminer3.pdfpage import PDFPage
 from pdfminer3.pdfinterp import PDFResourceManager
@@ -201,7 +202,7 @@ def run():
                 show_pdf(save_image_path)
 
 
-                resume_data = resume_parser.ResumeParser(save_image_path).get_extracted_data()
+                resume_data = ResumeParser(save_image_path).get_extracted_data()
                 if resume_data:
                     resume_text = pdf_reader(save_image_path)
                     st.header("Resume Analysis")
