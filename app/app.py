@@ -14,7 +14,6 @@ import plotly.express as px
 import plotly.graph_objects as go 
 from geopy.geocoders import Nominatim
 from geopy.exc import GeocoderTimedOut, GeocoderUnavailable 
-# from pyresparser import resume_parser
 from pyresparser.resume_parser import ResumeParser
 from pdfminer3.layout import LAParams , LTTextBox
 from pdfminer3.pdfpage import PDFPage
@@ -24,9 +23,42 @@ from pdfminer3.converter import TextConverter
 from streamlit_tags import st_tags
 from PIL import Image
 import nltk 
-from Courses import ds_course,web_course,android_course,ios_course,uiux_course,resume_videos,interview_videos
+from Courses import courses , resume_videos , interview_videos
 nltk.download('stopwords')
 nlp = spacy.load("en_core_web_sm")
+
+
+
+def analyze_resume(resume_path):
+    parser = ResumeParser(resume_path)
+    extracted_data = parser.get_extracted_data()
+
+    text = ' '.join([str(v) for v in extracted_data.values() if v])
+
+    detected_field_key = None
+    if any(keyword in text.lower() for keyword in ['python', 'machine learning', 'data']):
+        detected_field_key = 'data_science'
+    elif any(keyword in text.lower() for keyword in ['django', 'react', 'full stack']):
+        detected_field_key = 'web_development'
+    elif any(keyword in text.lower() for keyword in ['android', 'kotlin', 'flutter']):
+        detected_field_key = 'android_development'
+    elif any(keyword in text.lower() for keyword in ['ios', 'swift', 'xcode']):
+        detected_field_key = 'ios_development'
+    elif any(keyword in text.lower() for keyword in ['ux', 'ui', 'figma', 'xd']):
+        detected_field_key = 'uiux_design'
+    elif any(keyword in text.lower() for keyword in ['finance', 'accounting', 'bank']):
+        detected_field_key = 'finance'
+    elif any(keyword in text.lower() for keyword in ['marketing', 'seo', 'ads', 'social media']):
+        detected_field_key = 'marketing'
+    elif any(keyword in text.lower() for keyword in ['project management', 'scrum', 'pmp']):
+        detected_field_key = 'project_management'
+    elif any(keyword in text.lower() for keyword in ['human resource', 'hr', 'recruiter']):
+        detected_field_key = 'human_resources'
+
+    
+    suggested = courses.get(detected_field_key, [])
+
+    return extracted_data, suggested
 
 def get_csv_download_link(df,filename,text):
     csv = df.to_csv(index= False)
@@ -56,7 +88,7 @@ def pdf_reader(file):
 def  show_pdf(file_path):
     with open (file_path , "rb") as f:
         base64_pdf= base64.b64encode(f.read()).decode('utf-8') 
-    pdf_display  = F'<iframe src ="data:application/pdf;base64,{base64_pdf}" width="700" height="1000" type= "application/pdf"></iframe> '
+    pdf_display  = F'<iframe src ="data:application/pdf;base64,{base64_pdf} #toolbar=1&zoom=100" width="700" height="1000" type= "application/pdf"></iframe> '
     st.markdown(pdf_display, unsafe_allow_html=True)
 def course_recommender(course_list):
     st.subheader("**Course & Certification Recommendation 👨‍🎓**")
@@ -166,7 +198,8 @@ def run():
     """
     cursor.execute(tablef_sql)
 
-    if choice ==  'User':
+ 
+    if choice == 'User':
         act_name = st.text_input('NAME*')
         act_mail = st.text_input('Email*')
         act_mob = st.text_input('Mobile Number*')
@@ -174,20 +207,24 @@ def run():
         host_name = socket.gethostname()
         ip_add = socket.gethostbyname(host_name)
         dev_user = os.getlogin()
-        os_name_var = platform.system() + "" + platform.release()
+        os_name_var = platform.system() + " " + platform.release()
         g = geocoder.ip('me')
         latlong = g.latlng
-        geo_locator = Nominatim(user_agent ='https')
-        location = geo_locator.reverse(latlong , language= 'en' , timeout=10)
-        # location = reverse_geocode(geo_locator, latlong)
-        address = location.raw['address']
-        cityy = address.get('city','')
-        statee = address.get('state','')
-        countryy = address.get('country','')
-        city = cityy
-        state = statee
-        country = countryy
+        city = state = country = "Unavailable"
 
+        if latlong and latlong != [0.0, 0.0]:
+            try:
+                geo_locator = Nominatim(user_agent='resume_analyzer/1.0 (wahidhanzala123@gmail.com)')
+                location = geo_locator.reverse(latlong, language='en', timeout=10)
+                address = location.raw.get('address', {})
+                city = address.get('city') or address.get('town') or address.get('municipality') or ''
+                state = address.get('state') or address.get('region') or address.get('state_district') or ''
+                country = address.get('country', '')
+
+            except Exception as e:
+                st.warning(f"Geolocation failed: {e}")
+        else:
+            st.warning("Could not detect your location.")
 
         st.markdown('''<h5 style="text-align: left; color: #021659;">Upload Your Resume, And Get Smart Recommendation</h5>''', unsafe_allow_html=True)
         pdf_file = st.file_uploader("Choose your resume " , type = ["pdf"])
@@ -206,16 +243,14 @@ def run():
                 if resume_data:
                     resume_text = pdf_reader(save_image_path)
                     st.header("Resume Analysis")
-                    st.success("Hello "+ resume_data['name'])
-                    st.subheader("** Your Basic Info")
-                    try:
-                        st.text('Name'+ resume_data['name'])
-                        st.text('Email'+resume_data['email'])
-                        st.text('Contact'+resume_data['mobile_number'])
-                        st.text('Degree'+ resume_data['degree'])
-                        st.text('Resume pages'+resume_data['no_of_pages'])
-                    except:
-                        pass
+                    st.success("Hello" + resume_data['name'])
+                    st.subheader("** Your Basic Info ")
+                   
+                    st.text('Name: ' + str(resume_data.get('name', 'Not found')))
+                    st.text('Email: ' + str(resume_data.get('email', 'Not found')))
+                    st.text('Contact: ' + str(resume_data.get('mobile_number', 'Not found')))
+                    st.text('Degree: ' + str(resume_data.get('degree', 'Not found')))
+                    st.text('Resume pages: ' + str(resume_data.get('no_of_pages', 'N/A')))
 
                     cand_level = ''
                     if resume_data['no_of_pages'] < 1:
@@ -260,6 +295,10 @@ def run():
                     android_keyword = ['android','android development','flutter','kotlin','xml','kivy']
                     ios_keyword = ['ios','ios development','swift','cocoa','cocoa touch','xcode']
                     uiux_keyword = ['ux','adobe xd','figma','zeplin','balsamiq','ui','prototyping','wireframes','storyframes','adobe photoshop','photoshop','editing','adobe illustrator','illustrator','adobe after effects','after effects','adobe premier pro','premier pro','adobe indesign','indesign','wireframe','solid','grasp','user research','user experience']
+                    finance_keyword = ['finance', 'financial analysis', 'budgeting', 'accounting', 'valuation','financial modeling', 'corporate finance', 'investment', 'balance sheet','income statement', 'cash flow', 'audit', 'ledger', 'taxation', 'fintech','bookkeeping', 'equity', 'debt', 'roi', 'capital']
+                    marketing_keyword = ['marketing', 'digital marketing', 'seo', 'sem', 'social media', 'branding', 'content creation', 'email marketing', 'ppc', 'adwords', 'google analytics', 'facebook ads', 'market research', 'copywriting', 'campaigns', 'conversion rate', 'influencer marketing', 'growth hacking']
+                    project_management_keyword = ['project management', 'agile', 'scrum', 'kanban', 'jira', 'confluence', 'pmp', 'sprint', 'gantt chart', 'milestones', 'resource allocation', 'risk management', 'timeline', 'stakeholder', 'scrum master', 'project planning', 'scope', 'deliverables', 'waterfall', 'trello']
+                    human_resources_keyword = ['human resources', 'recruitment', 'onboarding', 'employee relations', 'hiring', 'talent acquisition', 'hr management', 'people management', 'training and development', 'compensation', 'benefits', 'performance review', 'organizational behavior', 'hr policies', 'strategic hr', 'conflict resolution', 'job evaluation', 'diversity and inclusion', 'labor law']
                     n_any = ['english','communication','writing', 'microsoft office', 'leadership','customer management', 'social media']
                     recommended_skills = []
                     reco_field = ''
@@ -274,7 +313,7 @@ def run():
                             recommended_keywords = st_tags(label='### Recommended skills for you.',
                             text = 'Recommened skills generated from system' , value= recommended_skills , key = '2')
                             st.markdown('''<h5 style='text-align: left; color: #1ed760;'>Adding this skills to resume will boost🚀 the chances of getting a Job</h5>''',unsafe_allow_html=True)
-                            rec_course = course_recommender(ds_course)
+                            rec_course = course_recommender(courses["data_science"])
                             break
                         elif i.lower() in web_keyword:
                             print(i.lower())
@@ -283,7 +322,7 @@ def run():
                             recommended_skills = ['React','Django','Node JS','React JS','php','laravel','Magento','wordpress','Javascript','Angular JS','c#','Flask','SDK']
                             recommended_keywords = st_tags(label='### Recommended skills for you.',text = 'Recommended skills generated from from system' , value = recommended_skills, key = '3')
                             st.markdown(''' <h5 style ='text-align: left ; color: #1ed760 ; > Adding this skills to resume will boost 🚀 the chances of getting a Job💼</h5>''',unsafe_allow_html=True)
-                            rec_course = course_recommender(web_course)
+                            rec_course = course_recommender(courses["web_development"])
                             break
                         elif i.lower() in android_keyword:
                             print(i.lower())
@@ -293,7 +332,7 @@ def run():
                             recommended_keywords = st_tags(label='### Recommended skills for you.',
                             text='Recommended skills generated from System',value=recommended_skills,key = '4')
                             st.markdown('''<h5 style='text-align: left; color: #1ed760;'>Adding this skills to resume will boost🚀 the chances of getting a Job💼</h5>''',unsafe_allow_html=True)
-                            rec_course = course_recommender(android_course)
+                            rec_course = course_recommender(courses["android_development"])
                             break 
 
                         elif i.lower() in ios_keyword:
@@ -304,7 +343,7 @@ def run():
                             recommended_keywords = st_tags(label = '### Recommended Skills for You.',
                             text = 'Recommended Skills generated from system ',value=recommended_skills,key='5')
                             st.markdown('''<h5 style='text-align: left; color: #1ed760;'>Adding this skills to resume will boost🚀 the chances of getting a Job💼</h5>''',unsafe_allow_html=True)
-                            rec_course = course_recommender(ios_course)
+                            rec_course = course_recommender(courses["ios_development"])
                             break
                         elif i.lower() in uiux_keyword:
                             print(i.lower())
@@ -314,10 +353,58 @@ def run():
                             recommended_keywords = st_tags(label='### Recommended skills for you.',
                             text='Recommended skills generated from System',value=recommended_skills,key = '6')
                             st.markdown('''<h5 style='text-align: left; color: #1ed760;'>Adding this skills to resume will boost🚀 the chances of getting a Job💼</h5>''',unsafe_allow_html=True)
-                            rec_course = course_recommender(uiux_course)
+                            rec_course = course_recommender(courses["uiux_design"])
+                            break
+                        elif i.lower() in finance_keyword:
+                            print(i.lower())
+                            reco_field = 'Finance'
+                            st.success("** Our analysis says you are looking for Finance Jobs **")
+                            recommended_skills = ['Financial Analysis', 'Accounting', 'Budgeting', 'Valuation', 'Corporate Finance', 'Taxation', 'Investment', 'Financial Modeling', 'Ledger Management', 'Cash Flow']
+                            recommended_keywords = st_tags(label='### Recommended skills for you.',
+                                                        text='Recommended skills generated from system',
+                                                        value=recommended_skills, key='7')
+                            st.markdown('''<h5 style='text-align: left; color: #1ed760;'>Adding these skills to resume will boost🚀 the chances of getting a Job💼</h5>''',
+                                        unsafe_allow_html=True)
+                            rec_course = course_recommender(courses["finance"])
+                            break
+                        elif i.lower() in marketing_keyword:
+                            print(i.lower())
+                            reco_field = 'Marketing'
+                            st.success("** Our analysis says you are looking for Marketing Jobs **")
+                            recommended_skills = ['Digital Marketing', 'SEO', 'SEM', 'Social Media', 'Google Ads', 'Email Marketing', 'Brand Strategy', 'Analytics', 'Content Creation', 'PPC']
+                            recommended_keywords = st_tags(label='### Recommended skills for you.',
+                                                        text='Recommended skills generated from system',
+                                                        value=recommended_skills, key='8')
+                            st.markdown('''<h5 style='text-align: left; color: #1ed760;'>Adding these skills to resume will boost🚀 the chances of getting a Job💼</h5>''',
+                                        unsafe_allow_html=True)
+                            rec_course = course_recommender(courses["marketing"])
+                            break
+                        elif i.lower() in project_management_keyword:
+                            print(i.lower())
+                            reco_field = 'Project Management'
+                            st.success("** Our analysis says you are looking for Project Management Jobs **")
+                            recommended_skills = ['Agile', 'Scrum', 'Kanban', 'PMP', 'JIRA', 'Project Planning', 'Risk Management', 'Team Coordination', 'Stakeholder Communication', 'Timeline Management']
+                            recommended_keywords = st_tags(label='### Recommended skills for you.',
+                                                        text='Recommended skills generated from system',
+                                                        value=recommended_skills, key='9')
+                            st.markdown('''<h5 style='text-align: left; color: #1ed760;'>Adding these skills to resume will boost🚀 the chances of getting a Job💼</h5>''',
+                                        unsafe_allow_html=True)
+                            rec_course = course_recommender(courses["project_management"])
+                            break
+                        elif i.lower() in human_resources_keyword:
+                            print(i.lower())
+                            reco_field = 'Human Resources'
+                            st.success("** Our analysis says you are looking for HR Jobs **")
+                            recommended_skills = ['Recruitment', 'Talent Acquisition', 'People Management', 'Onboarding', 'Employee Relations', 'Training & Development', 'HR Policies', 'Compensation', 'Labor Law', 'Performance Review']
+                            recommended_keywords = st_tags(label='### Recommended skills for you.',
+                                                        text='Recommended skills generated from system',
+                                                        value=recommended_skills, key='10')
+                            st.markdown('''<h5 style='text-align: left; color: #1ed760;'>Adding these skills to resume will boost🚀 the chances of getting a Job💼</h5>''',
+                                        unsafe_allow_html=True)
+                            rec_course = course_recommender(courses["human_resources"])
                             break
 
-                        
+
                         elif i.lower() in n_any:
                             print(i.lower())
                             reco_field = 'NA'
